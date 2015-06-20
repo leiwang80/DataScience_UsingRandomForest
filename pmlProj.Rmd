@@ -1,0 +1,94 @@
+---
+title: "Practical Machine Learning Project"
+author: "Lei Wang"
+date: "June 10, 2015"
+output: html_document
+---
+
+### overview ###
+
+Here we are building a machine learning model using the data collected from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways: "A", "B","C", "D", "E".  The level are stored as "classe" in the dataset, along with other data.  These data are divided into training and cross verification set, then we use the Random Forest method to build a classification prediction model, verify the accuracy of the model.  And then we use the model to predict the data in the test dataset.
+
+
+### Load and Clean Data ###
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+library(dplyr)
+library(caret)
+library(randomForest)
+
+df<-read.csv("pml-training.csv", na.strings = c("NA", ""))
+test<-read.csv("pml-testing.csv", na.strings = c("NA", ""))
+```
+
+First the the first 5 features are ID, user names, and timestamp - data not related to classification of the movement, we are going to drop them. 
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+df<-df[,-c(1:5)]
+test<-test[,-c(1:5)]
+
+```
+
+Also for test data, the feature "new_window" are all set to "no".  So we only use the data of "new_window" = "no" to build our model.  At the same time we drop "new_window" and "num_window" features since they are not related to classification of the movement anymore.
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+df<-filter(df, new_window =="no")
+df<-df[,-c(1:2)]
+test<-test[,-c(1:2)]
+```
+
+There are a lot NA in some columns, remove columns with a lot of NA.  Also drop the "problem_id" column in test dataset.
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+col_na_count <-apply(df, 2, function(x) length(which(is.na(x))) )
+cols <- which(col_na_count==0)
+
+df<-df[, cols]
+test <-test[, cols]
+test<-test[, -ncol(test)]
+
+dim(df)
+dim(test)
+```
+
+### Build the Machine Learning Model ###
+
+First, partition the train dataset df into training and cross verification datasets.
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+set.seed(12345)
+inTrain <- createDataPartition(y=df$classe, p=0.75, list=FALSE)
+training <- df[inTrain,]
+cv <- df[-inTrain,]
+
+dim(training)
+dim(cv)
+```
+
+Here we are using Random Forest method to create model:
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+modFit <- train(classe~ .,data=training,method="rf")
+summary(modFit)
+modFit$finalModel
+```
+
+Then we are using the cross verification data to check the accuracy of this model.
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+pred <- predict(modFit, cv)
+
+# Show the prediction on cross verification data by table.
+table(pred, cv$classe)
+
+#Calculate the number of correct predictions of the cross verification data.
+correct <- length(which(pred==cv$classe))
+correct
+
+#The error correct rate:
+total <- length(pred)
+error_rate <- (total-correct)/total
+error_rate
+```
+### Conclusion ###
+From above cross verification analysis, we can see the error rate for the model that we built using Random Forest is `r error_rate`, very low.  We should be able use this model to predict the answers for our test data.
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+answers <- predict(modFit, test)
+answers
+```
